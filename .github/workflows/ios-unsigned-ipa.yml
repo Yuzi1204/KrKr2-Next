@@ -1,0 +1,97 @@
+name: build-ios-unsigned-ipa
+
+# 在 GitHub 的 macOS runner 上编译 KrKr2-Next 引擎 + Flutter iOS App，
+# 产出一个未签名 .ipa（Payload/Runner.app），由你在 iPad 上自行签名。
+#
+# 用法：
+#   1. fork https://github.com/reAAAq/KrKr2-Next （或直接把整个仓库推到你自己的仓库）
+#   2. 把本文件放到仓库的 .github/workflows/ 下
+#   3. Actions 页面点 "Run workflow"
+#   4. 构建完成后在 Artifacts 里下载 krkr2-unsigned-ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+jobs:
+  build-ipa:
+    # macOS 14 runner = Xcode 15/16，iOS SDK 17+，满足工程要求的 deployment target 15.0
+    runs-on: macos-14
+    timeout-minutes: 300
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: 缓存 vcpkg 与二进制包
+        uses: actions/cache@v4
+        with:
+          path: |
+            .devtools/vcpkg
+            .vcpkg-cache
+          key: vcpkg-ios-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-ios-
+
+      - name: 安装 Flutter（stable）
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 安装构建依赖
+        run: |
+          brew install ninja
+          flutter --version
+          xcodebuild -version
+          cmake --version
+
+      - name: 准备 vcpkg
+        run: |
+          if [ ! -x .devtools/vcpkg/vcpkg ]; then
+            rm -rf .devtools/vcpkg
+            mkdir -p .devtools
+            git clone https://github.com/microsoft/vcpkg.git .devtools/vcpkg
+            ./.devtools/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          fi
+          echo "VCPKG_ROOT=$PWD/.devtools/vcpkg" >> "$GITHUB_ENV"
+          echo "已就绪: $PWD/.devtools/vcpkg"
+          $PWD/.devtools/vcpkg/vcpkg version
+
+      - name: 编译引擎 + Flutter iOS App
+        run: |
+          export VCPKG_ROOT="$PWD/.devtools/vcpkg"
+          export JOBS=4
+          bash build/build_ios.sh release
+
+      - name: 打包未签名 IPA
+        run: |
+          APP="apps/flutter_app/build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "找不到构建产物: $APP"
+            find apps/flutter_app/build/ios -maxdepth 3 -name "*.app" || true
+            exit 1
+          fi
+          rm -rf Payload Krkr2-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/Runner.app
+          zip -qry Krkr2-unsigned.ipa Payload
+          echo "--- 产物信息 ---"
+          ls -lh Krkr2-unsigned.ipa
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: krkr2-unsigned-ipa
+          path: Krkr2-unsigned.ipa
+          retention-days: 7
