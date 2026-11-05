@@ -9,3 +9,7 @@ set(VCPKG_OSX_ARCHITECTURES arm64)
 # Without this, --host and --build are both aarch64-apple-darwin on Apple Silicon,
 # causing configure to think it's not cross-compiling and try to run iOS binaries.
 set(VCPKG_MAKE_BUILD_TRIPLET "--host=aarch64-apple-ios")
+
+# --- krkr2-ios 补丁：7zip 24.09 在 arm64-ios 上需要 CRC 扩展才能编译 7zCrc.c ---
+set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} -march=armv8-a+crc")
+set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -march=armv8-a+crc")
