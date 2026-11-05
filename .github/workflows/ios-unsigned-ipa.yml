@@ -19,8 +19,8 @@ env:
 
 jobs:
   build-ipa:
-    # macOS 14 runner = Xcode 15/16，iOS SDK 17+，满足工程要求的 deployment target 15.0
-    runs-on: macos-14
+    # macos-15 = Xcode 16.x，iOS SDK 18；macos-14 已被 GitHub 下线
+    runs-on: macos-15
     timeout-minutes: 300
 
     steps:
