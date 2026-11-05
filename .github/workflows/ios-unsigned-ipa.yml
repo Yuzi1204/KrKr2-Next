@@ -36,6 +36,7 @@ jobs:
           path: |
             .devtools/vcpkg
             .vcpkg-cache
+            out/ios/release/vcpkg_installed
           key: vcpkg-ios-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             vcpkg-ios-
