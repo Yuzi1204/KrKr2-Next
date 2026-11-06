@@ -117,20 +117,51 @@ class _HomePageState extends State<HomePage> {
     
       /// 「游戏本体 ipa」：打包时把游戏目录放进 <Runner.app>/game，
       /// 这里直接登记并启动，跳过导入流程。
-      Future<void> _seedBundledGame() async {
-      try {
+      /// 「游戏本体 ipa」：打包时游戏数据放在 <Runner.app>/game/，
+  /// 首次启动复制到 Documents（bundle 只读，存档写不进去），之后直接用可写路径。
+  Future<void> _seedBundledGame() async {
+    Directory? bundled;
+    try {
       final appDir = File(Platform.resolvedExecutable).parent;
-      final dir = Directory(p.join(appDir.path, 'game'));
-      if (!dir.existsSync()) return;
-      if (!File(p.join(dir.path, 'data.xp3')).existsSync()) return;
-      _bundledGamePath = dir.path;
-      if (!_gameManager.games.any((g) => g.path == dir.path)) {
-      await _gameManager.addGame(GameInfo(path: dir.path));
+      bundled = Directory(p.join(appDir.path, 'game'));
+      if (!bundled.existsSync()) return;
+    } catch (_) {
+      return;
+    }
+
+    final docDir = await getApplicationDocumentsDirectory();
+    final target = Directory(p.join(docDir.path, 'Games', 'game'));
+    var usable = target.path;
+
+    try {
+      if (!File(p.join(target.path, 'data.xp3')).existsSync()) {
+        await target.create(recursive: true);
+        await _copyTree(bundled, target);
       }
-      } catch (_) {}
+    } catch (_) {
+      // 复制失败（磁盘不足等）时退化为只读 bundle 路径
+      usable = bundled.path;
+    }
+
+    _bundledGamePath = usable;
+    if (!_gameManager.games.any((g) => g.path == usable)) {
+      await _gameManager.addGame(GameInfo(path: usable));
+    }
+  }
+
+  Future<void> _copyTree(Directory from, Directory to) async {
+    await for (final entity in from.list(recursive: true, followLinks: false)) {
+      final rel = p.relative(entity.path, from: from.path);
+      final dest = p.join(to.path, rel);
+      if (entity is Directory) {
+        await Directory(dest).create(recursive: true);
+      } else if (entity is File) {
+        final f = File(dest);
+        if (!f.existsSync()) await entity.copy(dest);
       }
-    
-      void _autoLaunchBundledGame() {
+    }
+  }
+  void _autoLaunchBundledGame() {
       final bundled = _bundledGamePath;
       if (bundled == null) return;
       final idx = _gameManager.games.indexWhere((g) => g.path == bundled);
