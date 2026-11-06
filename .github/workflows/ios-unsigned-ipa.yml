@@ -20,7 +20,7 @@ env:
 jobs:
   build-ipa:
     # macos-15 = Xcode 16.x，iOS SDK 18；macos-14 已被 GitHub 下线
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 300
 
     steps:
