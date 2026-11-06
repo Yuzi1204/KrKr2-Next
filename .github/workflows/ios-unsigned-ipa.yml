@@ -50,7 +50,10 @@ jobs:
       - name: 安装构建依赖
         run: |
           # ninja/cmake 给引擎，autotools 给 vcpkg 的 host 工具（gperf/glib 等要 autoreconf）
-          brew install ninja cmake autoconf automake libtool autoconf-archive pkg-config
+          # bison: macOS 自带 2.3，TJS2 语法文件要求 >= 3.8.2
+          brew install ninja cmake autoconf automake libtool autoconf-archive pkg-config bison
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix bison)/bin/bison" --version | head -1
           flutter --version
           xcodebuild -version
           cmake --version
