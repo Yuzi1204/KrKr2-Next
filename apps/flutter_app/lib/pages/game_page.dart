@@ -77,6 +77,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   _EnginePhase _phase = _EnginePhase.initializing;
   String? _errorMessage;
   bool _showOverlay = false;
+  static const bool _showMenuButton = false;
   bool _showDebug = false;
   int _tickCount = 0;
   final List<String> _logs = [];
@@ -333,7 +334,20 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
       final startup = File('$path/startup.tjs');
       final init = File('$path/data/system/initialize.tjs');
       final initUpper = File('$path/data/system/Initialize.tjs');
-      if (!await startup.exists() &&
+
+      // 也接受只含 xp3 封包的目录：引擎会自动挂载封包并从里面取 startup.tjs
+      var hasXp3 = false;
+      try {
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is File && entity.path.toLowerCase().endsWith('.xp3')) {
+            hasXp3 = true;
+            break;
+          }
+        }
+      } catch (_) {}
+
+      if (!hasXp3 &&
+          !await startup.exists() &&
           !await init.exists() &&
           !await initUpper.exists()) {
         return 'Missing startup script in: $path\n'
@@ -885,7 +899,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               rendererInfo: _rendererInfo,
             ),
 
-          // Floating menu button (top-right)
+          // Floating menu button (top-right) — 默认隐藏
+          if (_showMenuButton)
           Positioned(
             right: 16,
             top: MediaQuery.of(context).padding.top + 8,
@@ -987,14 +1002,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    'krkr2 engine',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
+                  const SizedBox.shrink(),
+
                 ],
               ),
             ),
