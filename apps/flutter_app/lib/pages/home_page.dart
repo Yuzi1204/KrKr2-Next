@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   final GameManager _gameManager = GameManager();
   bool _loading = true;
   String? _iosGamesDir;
+  String? _bundledGamePath;
   // On Android/iOS the engine is always built-in; EngineMode switching is
   // only meaningful on desktop platforms.
   EngineMode _engineMode = EngineMode.builtIn;
@@ -100,15 +101,45 @@ class _HomePageState extends State<HomePage> {
     _renderer = prefs.getString(PrefsKeys.renderer) ?? PrefsKeys.rendererOpengl;
     _angleBackend = prefs.getString(PrefsKeys.angleBackend) ?? PrefsKeys.angleBackendGles;
     _forceLandscape = prefs.getBool(PrefsKeys.forceLandscape) ?? true;
-    await _gameManager.load();
-    await _gameManager.applyPendingPlaySession();
-
-    if (Platform.isIOS) {
-      await _initIosGamesDir();
-    }
-
-    if (mounted) setState(() => _loading = false);
-  }
+      await _gameManager.load();
+      await _gameManager.applyPendingPlaySession();
+    
+      if (Platform.isIOS) {
+        await _initIosGamesDir();
+        await _seedBundledGame();
+      }
+    
+      if (mounted) {
+        setState(() => _loading = false);
+        _autoLaunchBundledGame();
+      }
+      }
+    
+      /// 「游戏本体 ipa」：打包时把游戏目录放进 <Runner.app>/game，
+      /// 这里直接登记并启动，跳过导入流程。
+      Future<void> _seedBundledGame() async {
+      try {
+      final appDir = File(Platform.resolvedExecutable).parent;
+      final dir = Directory(p.join(appDir.path, 'game'));
+      if (!dir.existsSync()) return;
+      if (!File(p.join(dir.path, 'data.xp3')).existsSync()) return;
+      _bundledGamePath = dir.path;
+      if (!_gameManager.games.any((g) => g.path == dir.path)) {
+      await _gameManager.addGame(GameInfo(path: dir.path));
+      }
+      } catch (_) {}
+      }
+    
+      void _autoLaunchBundledGame() {
+      final bundled = _bundledGamePath;
+      if (bundled == null) return;
+      final idx = _gameManager.games.indexWhere((g) => g.path == bundled);
+      if (idx < 0) return;
+      final game = _gameManager.games[idx];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _launchGame(game);
+      });
+      }
 
   Future<void> _initIosGamesDir() async {
     final docDir = await getApplicationDocumentsDirectory();
