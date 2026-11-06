@@ -33,6 +33,7 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _iosGamesDir;
   String? _bundledGamePath;
+  String? _bootHint;
   // On Android/iOS the engine is always built-in; EngineMode switching is
   // only meaningful on desktop platforms.
   EngineMode _engineMode = EngineMode.builtIn;
@@ -130,16 +131,27 @@ class _HomePageState extends State<HomePage> {
     }
 
     final docDir = await getApplicationDocumentsDirectory();
-    final target = Directory(p.join(docDir.path, 'Games', 'game'));
+    final gamesRoot = Directory(p.join(docDir.path, 'Games'));
+    final target = Directory(p.join(gamesRoot.path, 'game'));
+    final marker = File(p.join(gamesRoot.path, '.game_ready'));
     var usable = target.path;
 
     try {
-      if (!File(p.join(target.path, 'data.xp3')).existsSync()) {
+      if (!marker.existsSync()) {
+        // 上次可能拷到一半被系统杀掉：先清空再重拷，全部完成后才写标记
+        if (target.existsSync()) await target.delete(recursive: true);
+        if (mounted) {
+          setState(() => _bootHint = '首次启动，正在释放游戏数据（约 4 GB），请勿关闭 App');
+        }
         await target.create(recursive: true);
         await _copyTree(bundled, target);
+        await Directory(p.join(target.path, 'savedata_CN')).create(recursive: true);
+        await marker.writeAsString(DateTime.now().toIso8601String());
+        if (mounted) setState(() => _bootHint = null);
       }
     } catch (_) {
       // 复制失败（磁盘不足等）时退化为只读 bundle 路径
+      if (mounted) setState(() => _bootHint = null);
       usable = bundled.path;
     }
 
@@ -924,7 +936,21 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  if (_bootHint != null) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(_bootHint!, textAlign: TextAlign.center),
+                    ),
+                  ],
+                ],
+              ),
+            )
           : CustomScrollView(
               slivers: [
                 SliverPadding(
