@@ -28,6 +28,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     layerExRaster.cpp
     layerExAreaAverage.cpp
     layerExLongExposure.cpp
+    live2d_stub.cpp
     # krkrlive2d.cpp  # 需要 Live2D Cubism Framework SDK（上游未附带）
     krkrgles.cpp
     drawDeviceD2DCompat.cpp
